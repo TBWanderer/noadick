@@ -105,7 +105,6 @@ async fn answer(bot: Bot, msg: Message, cmd: Command) -> ResponseResult<()> {
             let mut storage = load(msg.chat.id.0).expect("Load error");
             let user = msg.from.clone().unwrap();
             let user_id = user.id.0 as i64;
-
             let now = Local::now();
             let tomorrow_midnight = (now + Duration::days(1))
                 .date_naive()
@@ -115,7 +114,6 @@ async fn answer(bot: Bot, msg: Message, cmd: Command) -> ResponseResult<()> {
                 .signed_duration_since(now.naive_local())
                 .to_std()
                 .unwrap();
-
             let time_remaining = duration_to_tomorrow.as_secs();
             let hours = time_remaining / 3600;
             let minutes = (time_remaining % 3600) / 60;
@@ -124,39 +122,40 @@ async fn answer(bot: Bot, msg: Message, cmd: Command) -> ResponseResult<()> {
                 if (DateTime::from_timestamp(owner.last, 0).unwrap().day() == now.day())
                     && (now.timestamp() - owner.last < 24 * 60 * 60)
                 {
-                    send(format!("Попробуй через {} ч {} мин", hours, minutes)).await?;
+                    let mut players: Vec<_> = storage.iter().collect();
+                    players.sort_by(|a, b| b.1.size.cmp(&a.1.size));
+                    let rank = players.iter().position(|(id, _)| **id == user_id).unwrap() + 1;
+
+                    let user_mention = format!(
+                        "<a href=\"tg://user?id={}\">{}</a>",
+                        user.id.0, user.first_name
+                    );
+
+                    let response = format!(
+                        "{}, твой писюн равен {} см.\nТы занимаешь {} место в топе.\nПопробуй через {} ч {} мин",
+                        user_mention, owner.size, rank, hours, minutes
+                    );
+                    send(response).await?;
                     return Ok(());
                 }
-
-                // let time_diff = current_time - owner.last;
-                // if time_diff < 24 * 60 * 60 {
-                //     let time_remaining = 24 * 60 * 60 - time_diff;
-                //     let hours = time_remaining / 3600;
-                //     let minutes = (time_remaining % 3600) / 60;
-                //     send(format!("Попробуй через {} ч {} мин", hours, minutes)).await?;
-                //     return Ok(());
-                // }
             }
+
             let num = {
                 fn weighted_range_random(ranges: &[(std::ops::RangeInclusive<i16>, f32)]) -> i16 {
                     use rand::Rng;
                     let mut rng = rand::rng();
                     let total: f32 = ranges.iter().map(|(_, w)| w).sum();
                     let mut roll = rng.random::<f32>() * total;
-
                     for (range, weight) in ranges {
                         roll -= weight;
                         if roll <= 0.0 {
                             return rng.random_range(range.clone());
                         }
                     }
-
                     let fallback = &ranges.last().unwrap().0;
                     rng.random_range(fallback.clone())
                 }
-
                 let ranges = vec![(-10..=0, 0.3), (1..=7, 0.6), (8..=14, 0.1)];
-
                 weighted_range_random(&ranges)
             };
 
@@ -173,22 +172,18 @@ async fn answer(bot: Bot, msg: Message, cmd: Command) -> ResponseResult<()> {
                 });
 
             let new_size = storage.get(&user_id).unwrap().size;
-
             let mut players: Vec<_> = storage.iter().collect();
             players.sort_by(|a, b| b.1.size.cmp(&a.1.size));
             let rank = players.iter().position(|(id, _)| **id == user_id).unwrap() + 1;
-
             let user_mention = format!(
                 "<a href=\"tg://user?id={}\">{}</a>",
                 user.id.0, user.first_name
             );
-
             let change_text = if num >= 0 {
                 "вырос"
             } else {
                 "уменьшился"
             };
-
             let response = format!(
                 "{}, твой писюн {} на {} см.\nТеперь он равен {} см.\nТы занимаешь {} место в топе.\nСледующая попытка завтра, через {} ч {} мин!",
                 user_mention,
@@ -199,9 +194,7 @@ async fn answer(bot: Bot, msg: Message, cmd: Command) -> ResponseResult<()> {
                 hours,
                 minutes
             );
-
             send(response).await?;
-
             save(msg.chat.id.0, storage).expect("Save error");
         }
         Command::Top => {
