@@ -137,8 +137,28 @@ async fn answer(bot: Bot, msg: Message, cmd: Command) -> ResponseResult<()> {
                 //     return Ok(());
                 // }
             }
+            let num = {
+                fn weighted_range_random(ranges: &[(std::ops::RangeInclusive<i16>, f32)]) -> i16 {
+                    use rand::Rng;
+                    let mut rng = rand::rng();
+                    let total: f32 = ranges.iter().map(|(_, w)| w).sum();
+                    let mut roll = rng.random::<f32>() * total;
 
-            let num = rand::random_range(-10..=14);
+                    for (range, weight) in ranges {
+                        roll -= weight;
+                        if roll <= 0.0 {
+                            return rng.random_range(range.clone());
+                        }
+                    }
+
+                    let fallback = &ranges.last().unwrap().0;
+                    rng.random_range(fallback.clone())
+                }
+
+                let ranges = vec![(-10..=0, 0.3), (1..=7, 0.6), (8..=14, 0.1)];
+
+                weighted_range_random(&ranges)
+            };
 
             storage
                 .entry(user_id)
