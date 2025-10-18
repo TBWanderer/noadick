@@ -155,7 +155,12 @@ async fn answer(bot: Bot, msg: Message, cmd: Command) -> ResponseResult<()> {
                     let fallback = &ranges.last().unwrap().0;
                     rng.random_range(fallback.clone())
                 }
-                let ranges = vec![(-10..=0, 0.3), (1..=7, 0.6), (8..=14, 0.1)];
+                let ranges = vec![
+                    (-10..=-6, 0.05),
+                    (-5..=0, 0.25),
+                    (1..=7, 0.6),
+                    (8..=14, 0.1),
+                ];
                 weighted_range_random(&ranges)
             };
 
