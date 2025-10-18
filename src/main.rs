@@ -119,7 +119,7 @@ async fn answer(bot: Bot, msg: Message, cmd: Command) -> ResponseResult<()> {
             let minutes = (time_remaining % 3600) / 60;
 
             if let Some(owner) = storage.get(&user_id) {
-                if (DateTime::from_timestamp(owner.last, 0).unwrap().day() == now.day())
+                if (DateTime::from_timestamp(owner.last, 0).unwrap().day() == now.to_utc().day())
                     && (now.timestamp() - owner.last < 24 * 60 * 60)
                 {
                     let mut players: Vec<_> = storage.iter().collect();
