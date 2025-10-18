@@ -44,19 +44,18 @@ fn save(chat_id: i64, owners: DickOwners) -> anyhow::Result<()> {
 async fn main() {
     pretty_env_logger::init();
 
-    match std::env::var("NOADICK_BOT_MODE") {
-        Ok(mode) => match mode.as_str() {
-            "RELEASE" => {
-                dotenv::from_filename(".release.env").ok();
-                log::warn!("Using RELEASE .env")
-            }
-            "DEBUG" => {
+    match std::env::var("DEBUG") {
+        Ok(mode) => match mode.as_str().to_lowercase().as_str() {
+            "true" | "1" | "yes" => {
                 dotenv::from_filename(".debug.env").ok();
                 log::warn!("Using DEBUG .env")
             }
-            _ => panic!("Please set NOADICK_BOT_MODE to RELEASE or DEBUG"),
+            _ => panic!("Please set correct value to DEBUG ()"),
         },
-        Err(_) => panic!("Please set NOADICK_BOT_MODE to RELEASE or DEBUG"),
+        Err(_) => {
+            dotenv::from_filename(".release.env").ok();
+            log::warn!("Using RELEASE .env")
+        }
     };
     log::info!("Starting bot...");
 
