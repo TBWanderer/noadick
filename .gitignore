@@ -1,0 +1,5 @@
+/target
+/.direnv
+/storage
+/.env
+/*.tar.gz
