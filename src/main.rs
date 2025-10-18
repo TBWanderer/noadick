@@ -1,3 +1,4 @@
+use chrono::{Duration, prelude::*};
 use dotenv;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -9,7 +10,7 @@ use teloxide::{prelude::*, utils::command::BotCommands};
 struct DickOwner {
     name: String,
     size: i16,
-    last: u128,
+    last: i64,
 }
 type DickOwners = HashMap<i64, DickOwner>;
 
@@ -41,9 +42,23 @@ fn save(chat_id: i64, owners: DickOwners) -> anyhow::Result<()> {
 
 #[tokio::main]
 async fn main() {
-    let _ = dotenv::dotenv();
     pretty_env_logger::init();
-    log::info!("Starting command bot...");
+
+    match std::env::var("NOADICK_BOT_MODE") {
+        Ok(mode) => match mode.as_str() {
+            "RELEASE" => {
+                dotenv::from_filename(".release.env").ok();
+                log::warn!("Using RELEASE .env")
+            }
+            "DEBUG" => {
+                dotenv::from_filename(".debug.env").ok();
+                log::warn!("Using DEBUG .env")
+            }
+            _ => panic!("Please set NOADICK_BOT_MODE to RELEASE or DEBUG"),
+        },
+        Err(_) => panic!("Please set NOADICK_BOT_MODE to RELEASE or DEBUG"),
+    };
+    log::info!("Starting bot...");
 
     let bot = Bot::from_env();
 
@@ -84,7 +99,6 @@ fn build_send(
 }
 
 async fn answer(bot: Bot, msg: Message, cmd: Command) -> ResponseResult<()> {
-    use std::time::SystemTime;
     let send = build_send(&bot, &msg);
     match cmd {
         Command::Help => send(Command::descriptions().to_string()).await?,
@@ -92,20 +106,37 @@ async fn answer(bot: Bot, msg: Message, cmd: Command) -> ResponseResult<()> {
             let mut storage = load(msg.chat.id.0).expect("Load error");
             let user = msg.from.clone().unwrap();
             let user_id = user.id.0 as i64;
-            let current_time = SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .expect("Time error")
-                .as_secs() as u128;
+
+            let now = Local::now();
+            let tomorrow_midnight = (now + Duration::days(1))
+                .date_naive()
+                .and_hms_opt(0, 0, 0)
+                .unwrap();
+            let duration_to_tomorrow = tomorrow_midnight
+                .signed_duration_since(now.naive_local())
+                .to_std()
+                .unwrap();
+
+            let time_remaining = duration_to_tomorrow.as_secs();
+            let hours = time_remaining / 3600;
+            let minutes = (time_remaining % 3600) / 60;
 
             if let Some(owner) = storage.get(&user_id) {
-                let time_diff = current_time - owner.last;
-                if time_diff < 24 * 60 * 60 {
-                    let time_remaining = 24 * 60 * 60 - time_diff;
-                    let hours = time_remaining / 3600;
-                    let minutes = (time_remaining % 3600) / 60;
+                if (DateTime::from_timestamp(owner.last, 0).unwrap().day() == now.day())
+                    && (now.timestamp() - owner.last < 24 * 60 * 60)
+                {
                     send(format!("Попробуй через {} ч {} мин", hours, minutes)).await?;
                     return Ok(());
                 }
+
+                // let time_diff = current_time - owner.last;
+                // if time_diff < 24 * 60 * 60 {
+                //     let time_remaining = 24 * 60 * 60 - time_diff;
+                //     let hours = time_remaining / 3600;
+                //     let minutes = (time_remaining % 3600) / 60;
+                //     send(format!("Попробуй через {} ч {} мин", hours, minutes)).await?;
+                //     return Ok(());
+                // }
             }
 
             let num = rand::random_range(-10..=14);
@@ -114,12 +145,12 @@ async fn answer(bot: Bot, msg: Message, cmd: Command) -> ResponseResult<()> {
                 .entry(user_id)
                 .and_modify(|owner| {
                     owner.size += num;
-                    owner.last = current_time;
+                    owner.last = now.timestamp();
                 })
                 .or_insert(DickOwner {
                     name: user.first_name.clone(),
                     size: num,
-                    last: current_time,
+                    last: now.timestamp(),
                 });
 
             let new_size = storage.get(&user_id).unwrap().size;
@@ -127,11 +158,6 @@ async fn answer(bot: Bot, msg: Message, cmd: Command) -> ResponseResult<()> {
             let mut players: Vec<_> = storage.iter().collect();
             players.sort_by(|a, b| b.1.size.cmp(&a.1.size));
             let rank = players.iter().position(|(id, _)| **id == user_id).unwrap() + 1;
-
-            let next_attempt_time = current_time + 24 * 60 * 60;
-            let time_until_next = next_attempt_time - current_time;
-            let hours = time_until_next / 3600;
-            let minutes = (time_until_next % 3600) / 60;
 
             let user_mention = format!(
                 "<a href=\"tg://user?id={}\">{}</a>",
@@ -145,7 +171,7 @@ async fn answer(bot: Bot, msg: Message, cmd: Command) -> ResponseResult<()> {
             };
 
             let response = format!(
-                "{}, твой писюн {} на {} см.\nТеперь он равен {} см.\nТы занимаешь {} место в топе.\nСледующая попытка через {} ч {} мин!",
+                "{}, твой писюн {} на {} см.\nТеперь он равен {} см.\nТы занимаешь {} место в топе.\nСледующая попытка завтра, через {} ч {} мин!",
                 user_mention,
                 change_text,
                 num.abs(),
