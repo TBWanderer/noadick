@@ -1,5 +1,5 @@
 /target
 /.direnv
-/storage
-/.env
+/storage*
+/.*.env
 /*.tar.gz
