@@ -106,22 +106,24 @@ async fn answer(bot: Bot, msg: Message, cmd: Command) -> ResponseResult<()> {
             let user = msg.from.clone().unwrap();
             let user_id = user.id.0 as i64;
             let now = Local::now();
-            let tomorrow_midnight = (now + Duration::days(1))
-                .date_naive()
-                .and_hms_opt(0, 0, 0)
-                .unwrap();
-            let duration_to_tomorrow = tomorrow_midnight
-                .signed_duration_since(now.naive_local())
-                .to_std()
-                .unwrap();
-            let time_remaining = duration_to_tomorrow.as_secs();
-            let hours = time_remaining / 3600;
-            let minutes = (time_remaining % 3600) / 60;
 
             if let Some(owner) = storage.get(&user_id) {
-                if (DateTime::from_timestamp(owner.last, 0).unwrap().day() == now.to_utc().day())
-                    && (now.timestamp() - owner.last < 24 * 60 * 60)
-                {
+                let last_attempt = DateTime::from_timestamp(owner.last, 0)
+                    .unwrap()
+                    .with_timezone(&Local);
+
+                if last_attempt.date_naive() == now.date_naive() {
+                    let next_midnight = (now + Duration::days(1))
+                        .date_naive()
+                        .and_hms_opt(0, 0, 0)
+                        .unwrap()
+                        .and_local_timezone(Local)
+                        .unwrap();
+
+                    let time_remaining = next_midnight.signed_duration_since(now);
+                    let hours = time_remaining.num_hours();
+                    let minutes = time_remaining.num_minutes() % 60;
+
                     let mut players: Vec<_> = storage.iter().collect();
                     players.sort_by(|a, b| b.1.size.cmp(&a.1.size));
                     let rank = players.iter().position(|(id, _)| **id == user_id).unwrap() + 1;
@@ -178,6 +180,18 @@ async fn answer(bot: Bot, msg: Message, cmd: Command) -> ResponseResult<()> {
                 });
 
             let new_size = storage.get(&user_id).unwrap().size;
+
+            let next_midnight = (now + Duration::days(1))
+                .date_naive()
+                .and_hms_opt(0, 0, 0)
+                .unwrap()
+                .and_local_timezone(Local)
+                .unwrap();
+
+            let time_remaining = next_midnight.signed_duration_since(now);
+            let hours = time_remaining.num_hours();
+            let minutes = time_remaining.num_minutes() % 60;
+
             let mut players: Vec<_> = storage.iter().collect();
             players.sort_by(|a, b| b.1.size.cmp(&a.1.size));
             let rank = players.iter().position(|(id, _)| **id == user_id).unwrap() + 1;
