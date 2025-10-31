@@ -1,12 +1,14 @@
+use bincode::{Decode, Encode};
 use chrono::{Duration, prelude::*};
 use dotenv;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
+use std::path::PathBuf;
 use std::pin::Pin;
 use teloxide::{prelude::*, utils::command::BotCommands};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Decode, Encode, Debug, Clone)]
 struct DickOwner {
     name: String,
     size: i16,
@@ -15,29 +17,41 @@ struct DickOwner {
 type DickOwners = HashMap<i64, DickOwner>;
 
 fn load(chat_id: i64) -> anyhow::Result<DickOwners> {
-    let dir = std::env::var("STORAGE_PATH").unwrap_or("./".into());
-    if !fs::exists(&dir)? {
-        fs::create_dir(&dir)?;
-    }
-    let path = dir + &format!("./{}.json", chat_id);
+    let path = get_storage_path(chat_id);
+
     if fs::exists(&path)? {
         let data = fs::read(&path)?;
-        let owners: DickOwners = serde_json::from_str(&String::from_utf8(data)?)?;
-        return Ok(owners);
+        let owners: DickOwners = bincode::decode_from_slice(&data, bincode::config::standard())
+            .map_err(|e| anyhow::anyhow!("Failed to decode bincode: {}", e))?
+            .0;
+        Ok(owners)
     } else {
-        save(chat_id, DickOwners::new())?;
-        return Ok(DickOwners::new());
+        let owners = DickOwners::new();
+        save(chat_id, owners.clone())?;
+        Ok(owners)
     }
 }
 
 fn save(chat_id: i64, owners: DickOwners) -> anyhow::Result<()> {
-    let dir = std::env::var("STORAGE_PATH").unwrap_or("./".into());
-    if !fs::exists(&dir)? {
-        fs::create_dir(&dir)?;
+    let path = get_storage_path(chat_id);
+
+    // Ensure directory exists
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
     }
-    let path = dir + &format!("./{}.json", chat_id);
-    fs::write(path, serde_json::to_string(&owners)?)?;
+
+    let encoded = bincode::encode_to_vec(&owners, bincode::config::standard())
+        .map_err(|e| anyhow::anyhow!("Failed to encode bincode: {}", e))?;
+
+    fs::write(path, encoded)?;
     Ok(())
+}
+
+fn get_storage_path(chat_id: i64) -> PathBuf {
+    let dir = std::env::var("STORAGE_PATH").unwrap_or_else(|_| "./storage".to_string());
+    let filename = format!("{}", chat_id);
+    let md5_hash = format!("{:x}", md5::compute(filename.as_bytes()));
+    PathBuf::from(dir).join(format!("{}.dat", md5_hash))
 }
 
 #[tokio::main]
@@ -233,7 +247,7 @@ async fn answer(bot: Bot, msg: Message, cmd: Command) -> ResponseResult<()> {
             let mut response = String::from("🏆 Топ 10:\n\n");
             for (index, (_, owner)) in top_players.enumerate() {
                 response.push_str(&format!(
-                    "{}. {} - {} см\n",
+                    "{}. <b>{}</b> ({} см)\n",
                     index + 1,
                     owner.name,
                     owner.size
