@@ -4,6 +4,7 @@ services:
     restart: unless-stopped
     environment:
       TZ: "Europe/Moscow"
+      RUST_LOG: "debug"
     volumes:
       - ./storage:/usr/src/noadick/storage
 
