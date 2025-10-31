@@ -5,6 +5,6 @@ services:
     environment:
       TZ: "Europe/Moscow"
       RUST_LOG: "debug"
+      RUST_BACKTRACE: 1
     volumes:
       - ./storage:/usr/src/noadick/storage
-

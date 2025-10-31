@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -e
 
 STORAGE_PATH="${STORAGE_PATH:-./storage}"
