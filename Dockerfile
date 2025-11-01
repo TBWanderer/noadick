@@ -18,10 +18,6 @@ COPY --from=builder /usr/local/cargo/bin/migrate_json_to_bin /usr/local/bin/migr
 COPY .release.env* ./.release.env
 COPY .debug.env* ./.debug.env
 
-COPY docker-entrypoint.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
-
 ENV STORAGE_PATH=/app/storage
 
-ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["noadick"]
