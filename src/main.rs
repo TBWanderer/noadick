@@ -263,14 +263,12 @@ async fn answer(bot: Bot, msg: Message, cmd: Command) -> ResponseResult<()> {
             let processing_start = Instant::now();
 
             let api_start = Instant::now();
-            let sent = bot.send_message(msg.chat.id, "Pong!").await?;
             let api_ms = api_start.elapsed().as_millis();
-
             let total_ms = processing_start.elapsed().as_millis();
 
             let text = format!("Pong! {}ms (API RTT), total {}ms", api_ms, total_ms);
 
-            bot.edit_message_text(msg.chat.id, sent.id, text).await?;
+            send(text).await?;
         }
     };
     Ok(())
