@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::pin::Pin;
+use std::time::Instant;
 use teloxide::{prelude::*, utils::command::BotCommands};
 
 #[derive(Serialize, Deserialize, Decode, Encode, Debug, Clone)]
@@ -87,6 +88,8 @@ enum Command {
     Dick,
     #[command(description = "вывести топ список")]
     Top,
+    #[command(description = "ping-pong")]
+    Ping,
 }
 
 fn build_send(
@@ -255,6 +258,19 @@ async fn answer(bot: Bot, msg: Message, cmd: Command) -> ResponseResult<()> {
             }
 
             send(response).await?;
+        }
+        Command::Ping => {
+            let processing_start = Instant::now();
+
+            let api_start = Instant::now();
+            let sent = bot.send_message(msg.chat.id, "Pong!").await?;
+            let api_ms = api_start.elapsed().as_millis();
+
+            let total_ms = processing_start.elapsed().as_millis();
+
+            let text = format!("Pong! {}ms (API RTT), total {}ms", api_ms, total_ms);
+
+            bot.edit_message_text(msg.chat.id, sent.id, text).await?;
         }
     };
     Ok(())
