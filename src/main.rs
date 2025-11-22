@@ -7,7 +7,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::time::Instant;
-use teloxide::{prelude::*, utils::command::BotCommands};
+use teloxide::{prelude::*, types::MessageId, utils::command::BotCommands};
 
 #[derive(Serialize, Deserialize, Decode, Encode, Debug, Clone)]
 struct DickOwner {
@@ -110,6 +110,24 @@ fn build_send(
                 request = request.message_thread_id(thread_id);
             }
             request.await.map(|_| ())
+        })
+    }
+}
+
+fn build_edit(
+    bot: &Bot,
+    chat_id: ChatId,
+    message_id: MessageId,
+) -> impl Fn(String) -> Pin<Box<dyn Future<Output = ResponseResult<()>> + Send>> {
+    let bot = bot.clone();
+
+    move |text: String| {
+        let bot = bot.clone();
+        Box::pin(async move {
+            bot.edit_message_text(chat_id, message_id, text)
+                .parse_mode(teloxide::types::ParseMode::Html)
+                .await
+                .map(|_| ())
         })
     }
 }
@@ -260,15 +278,27 @@ async fn answer(bot: Bot, msg: Message, cmd: Command) -> ResponseResult<()> {
             send(response).await?;
         }
         Command::Ping => {
-            let processing_start = Instant::now();
-
+            let processing_start = msg.date;
             let api_start = Instant::now();
+
+            let sent_msg = {
+                let mut request = bot
+                    .send_message(msg.chat.id, "Pong!")
+                    .parse_mode(teloxide::types::ParseMode::Html);
+                if let Some(thread_id) = msg.thread_id {
+                    request = request.message_thread_id(thread_id);
+                }
+                request.await?
+            };
+
             let api_ms = api_start.elapsed().as_millis();
-            let total_ms = processing_start.elapsed().as_millis();
+            let total_ms = Utc::now()
+                .signed_duration_since(processing_start)
+                .num_milliseconds();
 
+            let edit = build_edit(&bot, msg.chat.id, sent_msg.id);
             let text = format!("Pong! {}ms (API RTT), total {}ms", api_ms, total_ms);
-
-            send(text).await?;
+            edit(text).await?;
         }
     };
     Ok(())
